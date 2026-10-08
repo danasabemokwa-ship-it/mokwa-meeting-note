@@ -1,0 +1,61 @@
+name: Build Mokwa Meeting Note APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack uploaded project zip
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -1 || true)
+          if [ -n "$ZIP" ]; then
+            unzip -q -o "$ZIP" -d /tmp/unpack
+            SRC=$(dirname "$(find /tmp/unpack -name settings.gradle.kts | head -1)")
+            rm -rf "$SRC/.github"
+            cp -a "$SRC"/. .
+            git rm -q "$ZIP"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Unpack $ZIP"
+            git push
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the APK
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk "MokwaMeetingNote-v${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MokwaMeetingNote-APK
+          path: MokwaMeetingNote-v${{ github.run_number }}.apk
+
+      - name: Publish APK as a Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Mokwa Meeting Note – build ${{ github.run_number }}
+          body: Download the .apk below on your phone, tap it, allow "Install unknown apps" if asked, then Install.
+          files: MokwaMeetingNote-v${{ github.run_number }}.apk
+          make_latest: true
