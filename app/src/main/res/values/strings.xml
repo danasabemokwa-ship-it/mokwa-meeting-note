@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Mokwa Meeting Note</string>
+    <string name="channel_recording">Recording</string>
+    <string name="channel_processing">Transcription &amp; summaries</string>
+</resources>

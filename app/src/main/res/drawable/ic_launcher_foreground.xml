@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Note sheet -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,30h28l10,10v38a4,4 0,0 1,-4 4H36a4,4 0,0 1,-4 -4V34a4,4 0,0 1,4 -4z" />
+    <path
+        android:fillColor="#FFB2EBEE"
+        android:pathData="M64,30v10h10z" />
+    <!-- Lines -->
+    <path android:fillColor="#FF00696E" android:pathData="M40,48h22v3H40z" />
+    <path android:fillColor="#FF00696E" android:pathData="M40,56h16v3H40z" />
+    <!-- Mic badge -->
+    <path
+        android:fillColor="#FFFF8A65"
+        android:pathData="M62,64m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M62,67c1.4,0 2.5,-1.1 2.5,-2.5v-5c0,-1.4 -1.1,-2.5 -2.5,-2.5s-2.5,1.1 -2.5,2.5v5c0,1.4 1.1,2.5 2.5,2.5zM66.4,64.5c0,2.4 -2,4.3 -4.4,4.3s-4.4,-1.9 -4.4,-4.3H56.2c0,2.8 2.2,5.1 4.9,5.5V72h1.8v-2c2.7,-0.4 4.9,-2.7 4.9,-5.5z" />
+</vector>
