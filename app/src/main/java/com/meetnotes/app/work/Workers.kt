@@ -14,6 +14,7 @@ import androidx.work.WorkerParameters
 import com.meetnotes.app.MeetNotesApp
 import com.meetnotes.app.R
 import com.meetnotes.app.data.prefs.SettingsRepository
+import com.meetnotes.app.data.repository.DocumentRepository
 import com.meetnotes.app.domain.model.MeetingStatus
 import com.meetnotes.app.domain.model.ProcessMode
 import com.meetnotes.app.domain.model.SummaryTone
@@ -89,6 +90,47 @@ class ProcessMeetingWorker @AssistedInject constructor(
         const val KEY_TONE = "tone"
         const val TAG = "process_meeting"
         private const val NOTIFICATION_ID = 2001
+    }
+}
+
+/** Reads an imported document and writes its key points. */
+@HiltWorker
+class ProcessDocumentWorker @AssistedInject constructor(
+    @Assisted appContext: Context,
+    @Assisted params: WorkerParameters,
+    private val documents: DocumentRepository,
+) : CoroutineWorker(appContext, params) {
+
+    override suspend fun getForegroundInfo(): ForegroundInfo = documentForegroundInfo(applicationContext)
+
+    override suspend fun doWork(): Result {
+        val id = inputData.getLong(KEY_DOCUMENT_ID, -1L)
+        if (id < 0) return Result.failure()
+        runCatching { setForeground(documentForegroundInfo(applicationContext)) }
+        documents.process(id)
+        return Result.success()
+    }
+
+    companion object {
+        const val KEY_DOCUMENT_ID = "document_id"
+        const val TAG = "process_document"
+        private const val NOTIFICATION_ID = 2002
+
+        fun documentForegroundInfo(context: Context): ForegroundInfo {
+            val notification = NotificationCompat.Builder(context, MeetNotesApp.CHANNEL_PROCESSING)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle("Mokwa Meeting Note")
+                .setContentText("Summarising document…")
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setProgress(0, 0, true)
+                .build()
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                ForegroundInfo(NOTIFICATION_ID, notification)
+            }
+        }
     }
 }
 

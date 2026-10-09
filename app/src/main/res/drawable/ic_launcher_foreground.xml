@@ -11,8 +11,8 @@
         android:fillColor="#FFB2EBEE"
         android:pathData="M64,30v10h10z" />
     <!-- Lines -->
-    <path android:fillColor="#FF00696E" android:pathData="M40,48h22v3H40z" />
-    <path android:fillColor="#FF00696E" android:pathData="M40,56h16v3H40z" />
+    <path android:fillColor="#FF0B6B4F" android:pathData="M40,48h22v3H40z" />
+    <path android:fillColor="#FF0B6B4F" android:pathData="M40,56h16v3H40z" />
     <!-- Mic badge -->
     <path
         android:fillColor="#FFFF8A65"

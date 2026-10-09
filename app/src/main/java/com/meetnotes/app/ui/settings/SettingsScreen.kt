@@ -31,10 +31,12 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -80,9 +82,14 @@ import com.meetnotes.app.domain.model.AudioQuality
 import com.meetnotes.app.domain.model.SummarizerType
 import com.meetnotes.app.domain.model.SummaryTone
 import com.meetnotes.app.domain.model.TranscriptionEngineType
+import com.meetnotes.app.ui.theme.Brand
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onBack: (() -> Unit)? = null,
+    bottomBar: @Composable () -> Unit = {},
+    vm: SettingsViewModel = hiltViewModel(),
+) {
     val s by vm.settings.collectAsStateWithLifecycle()
     val keys by vm.keyStatus.collectAsStateWithLifecycle()
     val whisper by vm.whisperStatus.collectAsStateWithLifecycle()
@@ -100,10 +107,13 @@ fun SettingsScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) 
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = bottomBar,
         topBar = {
             TopAppBar(
                 title = { Text("Settings") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
+                navigationIcon = {
+                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                },
             )
         },
     ) { padding ->
@@ -112,6 +122,53 @@ fun SettingsScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) 
                 Modifier.widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                // ---------------- Quick setup (shown while the Demo engine is selected)
+                if (s.transcriptionEngine == TranscriptionEngineType.DEMO) {
+                    Card(colors = CardDefaults.cardColors(containerColor = Brand.Amber.copy(alpha = 0.16f))) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Get real minutes from your recordings", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "You're in Demo mode, which shows a sample meeting. Recommended: Google Gemini — it understands " +
+                                    "Nigerian accents, Pidgin, Hausa, Yoruba and Igbo, and has a free tier.\n" +
+                                    "1. Tap \"Get a key\" next to Google Gemini below and create a key.\n" +
+                                    "2. Paste it and tap Save key.\n" +
+                                    "3. Tap \"Use Gemini for everything\".",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Button(
+                                enabled = keys.saved[ApiProvider.GEMINI] != null,
+                                onClick = {
+                                    vm.update { it.copy(transcriptionEngine = TranscriptionEngineType.GEMINI, summarizer = SummarizerType.GEMINI) }
+                                },
+                            ) { Text("Use Gemini for everything") }
+                        }
+                    }
+                }
+
+                // ---------------- Profile & Gmail
+                SettingsCard("Profile & Gmail", Icons.Default.Person) {
+                    Text(
+                        "Used to sign emails and fill in recipients when you send minutes, reminders and document briefs with Gmail.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextSettingField("Your name", s.userName, "e.g. Dr. Amina Bello") { v -> vm.update { it.copy(userName = v) } }
+                    TextSettingField("Organisation / unit", s.organisation, "e.g. Mokwa LGA Health Department") { v -> vm.update { it.copy(organisation = v) } }
+                    TextSettingField(
+                        "Default email recipients",
+                        s.defaultRecipients,
+                        "team@example.com, chairman@example.com",
+                        keyboardType = KeyboardType.Email,
+                    ) { v -> vm.update { it.copy(defaultRecipients = v) } }
+                    Text(
+                        if (vm.gmailInstalled) "✓ Gmail is installed — emails open in Gmail ready to send."
+                        else "Gmail isn't installed; your other email app will be used.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (vm.gmailInstalled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+
                 // ---------------- Transcription
                 SettingsCard("Transcription", Icons.Default.RecordVoiceOver) {
                     TranscriptionEngineType.entries.forEach { type ->
@@ -166,7 +223,7 @@ fun SettingsScreen(onBack: () -> Unit, vm: SettingsViewModel = hiltViewModel()) 
                 }
 
                 // ---------------- Summaries
-                SettingsCard("Minutes & summaries", Icons.Default.AutoAwesome) {
+                SettingsCard("Minutes writer & document summaries", Icons.Default.AutoAwesome) {
                     SummarizerType.entries.forEach { type ->
                         val ready = when (type) {
                             SummarizerType.OFFLINE_RULES -> true
@@ -344,6 +401,29 @@ private fun GlossaryField(value: String, onSave: (String) -> Unit) {
             Text("Comma-separated people, places and acronyms used in your meetings. This greatly improves spelling.")
         },
         minLines = 2,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+        trailingIcon = {
+            if (text.trim() != value.trim()) TextButton(onClick = { onSave(text.trim()) }) { Text("Save") }
+        },
+    )
+}
+
+@Composable
+private fun TextSettingField(
+    label: String,
+    value: String,
+    placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    onSave: (String) -> Unit,
+) {
+    var text by remember(value) { mutableStateOf(value) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it },
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         trailingIcon = {
             if (text.trim() != value.trim()) TextButton(onClick = { onSave(text.trim()) }) { Text("Save") }

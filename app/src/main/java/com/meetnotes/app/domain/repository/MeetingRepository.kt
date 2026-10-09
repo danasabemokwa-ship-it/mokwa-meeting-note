@@ -1,6 +1,7 @@
 package com.meetnotes.app.domain.repository
 
 import com.meetnotes.app.domain.model.ActionItem
+import com.meetnotes.app.domain.model.ActionWithMeeting
 import com.meetnotes.app.domain.model.Meeting
 import com.meetnotes.app.domain.model.MeetingStatus
 import com.meetnotes.app.domain.model.MinutesSummary
@@ -27,4 +28,9 @@ interface MeetingRepository {
 
     suspend fun upsertActionItem(item: ActionItem): Long
     suspend fun deleteActionItem(id: Long)
+    suspend fun setActionDone(id: Long, done: Boolean)
+
+    /** Every action point across all meetings, open first and soonest due first. */
+    fun observeAllActions(): Flow<List<ActionWithMeeting>>
+    fun observeOpenActionCount(): Flow<Int>
 }

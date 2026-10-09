@@ -17,6 +17,8 @@ import com.meetnotes.app.domain.repository.MeetingRepository
 import com.meetnotes.app.domain.usecase.ScheduleProcessingUseCase
 import com.meetnotes.app.export.ExportFormat
 import com.meetnotes.app.export.ExportManager
+import com.meetnotes.app.export.GmailComposer
+import com.meetnotes.app.ui.components.EmailRequest
 import com.meetnotes.app.export.MinutesFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -51,6 +53,7 @@ class MeetingDetailViewModel @Inject constructor(
     private val repo: MeetingRepository,
     private val scheduleProcessing: ScheduleProcessingUseCase,
     private val exporter: ExportManager,
+    private val gmail: GmailComposer,
     settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
@@ -69,7 +72,12 @@ class MeetingDetailViewModel @Inject constructor(
 
     private val meeting get() = state.value.meeting
 
+    val gmailInstalled: Boolean get() = gmail.isGmailInstalled()
+
     // ---------------------------------------------------------------- processing
+
+    /** Transcribe the recording again (e.g. after switching from Demo to Gemini) and rewrite the minutes. */
+    fun retranscribe() = scheduleProcessing(meetingId, ProcessMode.ALL)
 
     fun transcribe() = scheduleProcessing(meetingId, ProcessMode.TRANSCRIBE)
 
@@ -125,7 +133,7 @@ class MeetingDetailViewModel @Inject constructor(
     // ---------------------------------------------------------------- action items
 
     fun toggleAction(item: ActionItem) = viewModelScope.launch {
-        repo.upsertActionItem(item.copy(done = !item.done))
+        repo.setActionDone(item.id, !item.done)
     }
 
     fun saveAction(item: ActionItem) = viewModelScope.launch {
@@ -151,6 +159,30 @@ class MeetingDetailViewModel @Inject constructor(
     fun shareActionItems() = viewModelScope.launch {
         val m = meeting ?: return@launch
         _events.send(DetailEvent.Launch(exporter.shareText("Action items – ${m.title}", MinutesFormatter.actionItemsText(m, state.value.actions))))
+    }
+
+    // ---------------------------------------------------------------- Gmail
+
+    fun emailMinutes(request: EmailRequest) = viewModelScope.launch {
+        val m = meeting ?: return@launch
+        runCatching { gmail.minutesEmail(m, state.value.actions, request.to, request.cc, request.attachment, request.includeTranscript) }
+            .onSuccess { _events.send(DetailEvent.Launch(it)) }
+            .onFailure { _events.send(DetailEvent.Message("Could not prepare the email: ${it.message}")) }
+    }
+
+    fun emailOwners() = viewModelScope.launch {
+        val m = meeting ?: return@launch
+        val open = state.value.actions.filter { !it.done }
+        if (open.isEmpty()) { _events.send(DetailEvent.Message("All action points are done")); return@launch }
+        if (open.none { it.ownerEmail.contains('@') }) {
+            _events.send(DetailEvent.Message("Tip: add owners' emails (tap an action point) so Gmail fills in the recipients"))
+        }
+        _events.send(DetailEvent.Launch(gmail.actionOwnersEmail(m, state.value.actions)))
+    }
+
+    fun remind(item: ActionItem) = viewModelScope.launch {
+        val m = meeting ?: return@launch
+        _events.send(DetailEvent.Launch(gmail.singleActionEmail(m.summary?.title?.ifBlank { null } ?: m.title, m.createdAt, item)))
     }
 
     // ---------------------------------------------------------------- export / share

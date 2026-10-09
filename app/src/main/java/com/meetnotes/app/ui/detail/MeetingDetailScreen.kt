@@ -27,12 +27,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -64,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,12 +79,15 @@ import com.meetnotes.app.domain.model.Meeting
 import com.meetnotes.app.domain.model.MeetingStatus
 import com.meetnotes.app.domain.model.SummaryTone
 import com.meetnotes.app.export.ExportFormat
+import com.meetnotes.app.ui.components.EmailDialog
 import com.meetnotes.app.ui.components.EmptyState
+import com.meetnotes.app.ui.theme.Brand
+import com.meetnotes.app.domain.model.TranscriptionEngineType
 
 private enum class DetailTab(val label: String) { SUMMARY("Minutes"), TRANSCRIPT("Transcript"), ACTIONS("Actions"), NOTES("Notes") }
 
 @Composable
-fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltViewModel()) {
+fun MeetingDetailScreen(onBack: () -> Unit, onOpenSettings: () -> Unit = {}, vm: MeetingDetailViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -93,6 +101,9 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
     var editingSummary by remember { mutableStateOf(false) }
     var editingAction by remember { mutableStateOf<ActionItem?>(null) }
     var addingAction by remember { mutableStateOf(false) }
+    var emailing by remember { mutableStateOf(false) }
+    var confirmRetranscribe by remember { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
 
     // One system "Save as" launcher per file type (the MIME type is fixed per launcher).
     val saveLaunchers = ExportFormat.entries.associateWith { format ->
@@ -136,6 +147,9 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
                 },
                 actions = {
                     if (meeting != null) {
+                        IconButton(onClick = { emailing = true }, enabled = meeting.summary != null) {
+                            Icon(Icons.Default.Email, contentDescription = "Email minutes with Gmail")
+                        }
                         Box {
                             IconButton(onClick = { showExportMenu = true }) { Icon(Icons.Default.Share, contentDescription = "Export and share") }
                             DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
@@ -186,6 +200,17 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
                                     onClick = { showOverflow = false; renaming = true },
                                 )
                                 DropdownMenuItem(
+                                    text = { Text("Re-transcribe recording") },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                                    enabled = !meeting.status.isBusy,
+                                    onClick = { showOverflow = false; confirmRetranscribe = true },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Email action owners") },
+                                    leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
+                                    onClick = { showOverflow = false; vm.emailOwners() },
+                                )
+                                DropdownMenuItem(
                                     text = { Text("Delete") },
                                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                                     onClick = { showOverflow = false; confirmDelete = true },
@@ -214,6 +239,10 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
                 val panes = DetailPaneCallbacks(
                     meeting = meeting,
                     actions = state.actions,
+                    onEmail = { emailing = true },
+                    onOpenActions = { selectedTab = DetailTab.entries.indexOf(DetailTab.ACTIONS) },
+                    onRemind = { vm.remind(it) },
+                    onEmailOwners = { vm.emailOwners() },
                     defaultTone = state.settings.defaultTone,
                     onTranscribe = { vm.transcribe() },
                     onSaveTranscript = { vm.saveTranscript(it) },
@@ -230,8 +259,16 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
                 )
                 Column(Modifier.fillMaxSize()) {
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val demoText = meeting.transcript?.startsWith("[Demo transcript") == true
+                        if (demoText) {
+                            DemoTranscriptBanner(
+                                demoEngine = state.settings.transcriptionEngine == TranscriptionEngineType.DEMO,
+                                onSettings = onOpenSettings,
+                                onRetranscribe = { vm.retranscribe() },
+                            )
+                        }
                         StatusBanner(meeting, onRetry = { vm.retry() }, onDismissNote = { vm.dismissNote() })
-                        AudioPlayerCard(meeting.audioPath, meeting.durationMs)
+                        if (meeting.audioPath.isNotBlank()) AudioPlayerCard(meeting.audioPath, meeting.durationMs)
                     }
                     if (wide) {
                         // Tablet / landscape: transcript on the left, minutes & actions on the right.
@@ -244,11 +281,11 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
                                 panes.Pane(DetailTab.TRANSCRIPT)
                             }
                             Column(Modifier.weight(1f).fillMaxSize()) {
-                                TabbedPanes(panes, listOf(DetailTab.SUMMARY, DetailTab.ACTIONS, DetailTab.NOTES))
+                                TabbedPanes(panes, listOf(DetailTab.SUMMARY, DetailTab.ACTIONS, DetailTab.NOTES), selectedTab) { selectedTab = it }
                             }
                         }
                     } else {
-                        TabbedPanes(panes, DetailTab.entries)
+                        TabbedPanes(panes, DetailTab.entries, selectedTab) { selectedTab = it }
                     }
                 }
             }
@@ -260,6 +297,29 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
         if (confirmDelete) ConfirmDeleteDialog(onDismiss = { confirmDelete = false }) { confirmDelete = false; vm.delete() }
         if (editingSummary && meeting.summary != null) {
             SummaryEditDialog(meeting.summary, onDismiss = { editingSummary = false }) { vm.saveSummary(it); editingSummary = false }
+        }
+        if (emailing) {
+            EmailDialog(
+                title = "Email minutes",
+                defaultTo = state.settings.defaultRecipients,
+                gmailInstalled = vm.gmailInstalled,
+                onDismiss = { emailing = false },
+                onSend = { emailing = false; vm.emailMinutes(it) },
+            )
+        }
+        if (confirmRetranscribe) {
+            AlertDialog(
+                onDismissRequest = { confirmRetranscribe = false },
+                title = { Text("Re-transcribe this meeting?") },
+                text = {
+                    Text(
+                        "The recording will be transcribed again with \"${state.settings.transcriptionEngine.label}\" and new minutes " +
+                            "and action points will replace the current ones."
+                    )
+                },
+                confirmButton = { TextButton(onClick = { confirmRetranscribe = false; vm.retranscribe() }) { Text("Re-transcribe") } },
+                dismissButton = { TextButton(onClick = { confirmRetranscribe = false }) { Text("Cancel") } },
+            )
         }
         if (addingAction || editingAction != null) {
             ActionItemDialog(
@@ -275,6 +335,10 @@ fun MeetingDetailScreen(onBack: () -> Unit, vm: MeetingDetailViewModel = hiltVie
 private class DetailPaneCallbacks(
     val meeting: Meeting,
     val actions: List<ActionItem>,
+    val onEmail: () -> Unit,
+    val onOpenActions: () -> Unit,
+    val onRemind: (ActionItem) -> Unit,
+    val onEmailOwners: () -> Unit,
     val defaultTone: SummaryTone,
     val onTranscribe: () -> Unit,
     val onSaveTranscript: (String) -> Unit,
@@ -292,22 +356,22 @@ private class DetailPaneCallbacks(
     @Composable
     fun Pane(tab: DetailTab) {
         when (tab) {
-            DetailTab.SUMMARY -> SummaryPane(meeting, defaultTone, actions.size, onGenerate, onEditSummary, onDownload)
+            DetailTab.SUMMARY -> SummaryPane(meeting, defaultTone, actions, onGenerate, onEditSummary, onDownload, onEmail, onOpenActions)
             DetailTab.TRANSCRIPT -> TranscriptPane(meeting, onTranscribe, onSaveTranscript)
-            DetailTab.ACTIONS -> ActionsPane(actions, onToggle, onEditAction, onDeleteAction, onCalendar, onCopy, onShareActions)
+            DetailTab.ACTIONS -> ActionsPane(actions, onToggle, onEditAction, onDeleteAction, onCalendar, onRemind, onEmailOwners, onCopy, onShareActions)
             DetailTab.NOTES -> NotesPane(meeting, onSaveNotes)
         }
     }
 }
 
 @Composable
-private fun TabbedPanes(panes: DetailPaneCallbacks, tabs: List<DetailTab>) {
-    var selected by rememberSaveable { mutableStateOf(0) }
-    val index = selected.coerceIn(0, tabs.lastIndex)
+private fun TabbedPanes(panes: DetailPaneCallbacks, tabs: List<DetailTab>, selectedAll: Int, onSelect: (Int) -> Unit) {
+    // [selectedAll] indexes DetailTab.entries so both layouts share one selection.
+    val index = tabs.indexOf(DetailTab.entries.getOrElse(selectedAll) { DetailTab.SUMMARY }).let { if (it < 0) 0 else it }
     TabRow(selectedTabIndex = index) {
         tabs.forEachIndexed { i, tab ->
             val badge = if (tab == DetailTab.ACTIONS && panes.actions.isNotEmpty()) " (${panes.actions.count { !it.done }})" else ""
-            Tab(selected = i == index, onClick = { selected = i }, text = { Text(tab.label + badge, maxLines = 1) })
+            Tab(selected = i == index, onClick = { onSelect(DetailTab.entries.indexOf(tab)) }, text = { Text(tab.label + badge, maxLines = 1) })
         }
     }
     // Each tab keeps its own scroll position.
@@ -366,6 +430,29 @@ private fun StatusBanner(meeting: Meeting, onRetry: () -> Unit, onDismissNote: (
                 Spacer(Modifier.width(12.dp))
                 Text(meeting.errorMessage, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = onDismissNote) { Text("OK") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DemoTranscriptBanner(demoEngine: Boolean, onSettings: () -> Unit, onRetranscribe: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = Brand.Amber.copy(alpha = 0.16f))) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.WarningAmber, contentDescription = null, tint = Color(0xFF9A5B00))
+                Spacer(Modifier.width(10.dp))
+                Text("These minutes are sample text", style = MaterialTheme.typography.titleSmall)
+            }
+            Text(
+                if (demoEngine) "The Demo engine doesn't listen to your recording. Choose Gemini or OpenAI in Settings, then tap Re-transcribe."
+                else "This meeting was processed in Demo mode. Tap Re-transcribe to process your real recording.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Row {
+                if (demoEngine) TextButton(onClick = onSettings) { Text("Open Settings") }
+                else TextButton(onClick = onRetranscribe) { Text("Re-transcribe now") }
             }
         }
     }

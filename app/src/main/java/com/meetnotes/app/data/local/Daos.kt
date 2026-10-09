@@ -1,12 +1,14 @@
 package com.meetnotes.app.data.local
 
 import androidx.room.Dao
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
+import com.meetnotes.app.domain.model.DocStatus
 import com.meetnotes.app.domain.model.MeetingStatus
 import kotlinx.coroutines.flow.Flow
 
@@ -69,6 +71,25 @@ abstract class ActionItemDao {
     @Query("DELETE FROM action_items WHERE meetingId = :meetingId")
     abstract suspend fun deleteForMeeting(meetingId: Long)
 
+    /** Every action point with its meeting: open first, then by due date (no date last), then priority. */
+    @Query(
+        """
+        SELECT a.*, m.title AS meetingTitle, m.createdAt AS meetingDate
+        FROM action_items a INNER JOIN meetings m ON m.id = a.meetingId
+        ORDER BY a.done ASC,
+                 CASE WHEN a.dueAt IS NULL THEN 1 ELSE 0 END, a.dueAt ASC,
+                 CASE a.priority WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
+                 m.createdAt DESC
+        """
+    )
+    abstract fun observeAllWithMeeting(): Flow<List<ActionWithMeetingRow>>
+
+    @Query("SELECT COUNT(*) FROM action_items WHERE done = 0")
+    abstract fun observeOpenCount(): Flow<Int>
+
+    @Query("SELECT * FROM action_items WHERE id = :id")
+    abstract suspend fun get(id: Long): ActionItemEntity?
+
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM action_items WHERE meetingId = :meetingId")
     abstract suspend fun nextPosition(meetingId: Long): Int
 
@@ -77,4 +98,43 @@ abstract class ActionItemDao {
         deleteForMeeting(meetingId)
         insertAll(items)
     }
+}
+
+data class ActionWithMeetingRow(
+    @Embedded val item: ActionItemEntity,
+    val meetingTitle: String,
+    val meetingDate: Long,
+)
+
+@Dao
+interface DocumentDao {
+    @Query("SELECT * FROM documents ORDER BY createdAt DESC")
+    fun observeAll(): Flow<List<DocumentEntity>>
+
+    @Query("SELECT * FROM documents WHERE id = :id")
+    fun observe(id: Long): Flow<DocumentEntity?>
+
+    @Query("SELECT * FROM documents WHERE id = :id")
+    suspend fun get(id: Long): DocumentEntity?
+
+    @Insert
+    suspend fun insert(entity: DocumentEntity): Long
+
+    @Update
+    suspend fun update(entity: DocumentEntity)
+
+    @Query("UPDATE documents SET status = :status, errorMessage = :error WHERE id = :id")
+    suspend fun setStatus(id: Long, status: DocStatus, error: String?)
+
+    @Query("UPDATE documents SET textPath = :textPath, meta = :meta WHERE id = :id")
+    suspend fun setText(id: Long, textPath: String, meta: String)
+
+    @Query("UPDATE documents SET summaryJson = :json WHERE id = :id")
+    suspend fun setSummary(id: Long, json: String?)
+
+    @Query("UPDATE documents SET name = :name WHERE id = :id")
+    suspend fun rename(id: Long, name: String)
+
+    @Query("DELETE FROM documents WHERE id = :id")
+    suspend fun delete(id: Long)
 }

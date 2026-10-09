@@ -7,7 +7,7 @@ sealed interface DocBlock {
     data class Heading(val text: String) : DocBlock
     data class Paragraph(val text: String) : DocBlock
     data class Bullet(val text: String) : DocBlock
-    data class ActionRow(val task: String, val owner: String, val due: String, val done: Boolean) : DocBlock
+    data class ActionRow(val task: String, val owner: String, val due: String, val done: Boolean, val priority: String = "") : DocBlock
     data class Small(val text: String) : DocBlock
     data object PageBreak : DocBlock
 }

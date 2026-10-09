@@ -36,15 +36,51 @@ data class Meeting(
     val progress: Float?,
 )
 
+enum class Priority(val label: String) {
+    HIGH("High"), MEDIUM("Medium"), LOW("Low");
+
+    companion object {
+        fun parse(raw: String?): Priority = when (raw?.trim()?.lowercase()) {
+            "high", "urgent", "critical", "h" -> HIGH
+            "low", "l" -> LOW
+            else -> MEDIUM
+        }
+    }
+}
+
+/** Local midnight of the day containing [now]. */
+fun startOfToday(now: Long = System.currentTimeMillis()): Long =
+    java.util.Calendar.getInstance().apply {
+        timeInMillis = now
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+        set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
 data class ActionItem(
     val id: Long = 0,
     val meetingId: Long,
     val owner: String = "TBD",
     val task: String,
+    /** Deadline as said or typed ("Friday", "15 October", "TBD"). */
     val dueDate: String = "TBD",
     val done: Boolean = false,
     val position: Int = 0,
-)
+    val priority: Priority = Priority.MEDIUM,
+    val ownerEmail: String = "",
+    /** [dueDate] resolved to a real date (local midnight), when it could be understood. */
+    val dueAt: Long? = null,
+    val notes: String = "",
+    val completedAt: Long? = null,
+) {
+    fun isOverdue(now: Long = System.currentTimeMillis()): Boolean =
+        !done && dueAt != null && dueAt < startOfToday(now)
+
+    fun isDueWithin(days: Int, now: Long = System.currentTimeMillis()): Boolean =
+        !done && dueAt != null && dueAt >= startOfToday(now) && dueAt < startOfToday(now) + days * 86_400_000L
+}
+
+/** An action point together with the meeting it came from (for the all-meetings tracker). */
+data class ActionWithMeeting(val item: ActionItem, val meetingTitle: String, val meetingDate: Long)
 
 /**
  * Structured minutes. The JSON field names are the exact contract the LLM is asked to return
@@ -68,6 +104,8 @@ data class SummaryActionItem(
     val owner: String = "TBD",
     val task: String = "",
     @SerialName("due_date") val dueDate: String = "TBD",
+    /** "High", "Medium" or "Low". */
+    val priority: String = "Medium",
 )
 
 fun MinutesSummary.normalized(): MinutesSummary {
@@ -88,6 +126,7 @@ fun MinutesSummary.normalized(): MinutesSummary {
                     owner = it.owner.trim().ifBlank { "TBD" },
                     task = it.task.trim(),
                     dueDate = it.dueDate.trim().ifBlank { "TBD" },
+                    priority = Priority.parse(it.priority).label,
                 )
             },
     )
@@ -137,4 +176,10 @@ data class AppSettings(
     val openAiModel: String = "gpt-4o-mini",
     val geminiModel: String = "gemini-2.5-flash",
     val anthropicModel: String = "claude-haiku-5-5",
+    /** Shown on the home screen and used to sign emails. */
+    val userName: String = "",
+    /** Organisation / designation, e.g. "WHO APHO, Kano". */
+    val organisation: String = "",
+    /** Comma-separated email addresses pre-filled when emailing minutes. */
+    val defaultRecipients: String = "",
 )

@@ -8,6 +8,21 @@ Min SDK 26 (Android 8.0) · Target SDK 35 · phones and tablets · light/dark/dy
 
 ---
 
+## What's new in version 2.0
+
+- **New look.** Brand-green design with a dashboard home screen (greeting, meeting / open-action / overdue counters, quick actions), calendar-style meeting cards with participants and action progress, and a bottom bar: **Meetings · Actions · Documents · Settings**.
+- **Structured minutes.** Each section is its own card: participants with avatars, key discussion points, numbered decisions/resolutions, an action-point table (owner, due date, priority) and next steps. Word/PDF exports now include a **Priority** column.
+- **Action tracker.** One list of every action point from every meeting, with filters (Open, Overdue, Due this week, High priority, Completed), due-date and priority badges, owner emails, a calendar date picker, notes, calendar export and Gmail reminders.
+- **Gmail.** "Email minutes" opens Gmail with recipients, subject, a professional summary and the PDF or Word file attached; you review and tap Send. You can also email every action owner, remind a single person, or send a status-update email for all open actions. Set your name, organisation and default recipients in **Settings → Profile & Gmail**. No password or Google sign-in is needed.
+- **Documents.** Add a **Word (.docx), PDF, Excel (.xlsx) or CSV** file, or paste text, and get a brief: overview, key points, key figures, recommendations, issues and risks, and action points. You can also open an attachment in Gmail and choose **Share → Mokwa Meeting Note**.
+  - Spreadsheet totals and averages are calculated exactly on the phone. Total rows are excluded and percentages are averaged, not added.
+  - Offline summaries work with no internet. With a Gemini, OpenAI or Claude key (Settings → Minutes writer), you get AI-written briefs. Gemini can also read scanned PDFs.
+  - Briefs can be emailed, downloaded as PDF or Word, and their action points added to the Action tracker.
+- **Demo mode warning.** A banner explains when minutes are sample text, and **Re-transcribe** (meeting ⋮ menu) processes the real recording after you switch to Gemini or OpenAI.
+- **Stable updates.** Builds are now signed with a fixed key, so future versions install over the old one. This is a test key; use your own for a Play Store release.
+
+> Upgrading from 1.x: uninstall the old app once before installing 2.0 (new signing key and a new database format).
+
 ## 1. Open and run (5 minutes)
 
 1. Install **Android Studio Ladybug (2024.2) or newer**.

@@ -33,7 +33,10 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val keys: SecureKeyStore,
     private val whisper: LocalWhisperEngine,
+    private val gmail: com.meetnotes.app.export.GmailComposer,
 ) : ViewModel() {
+
+    val gmailInstalled: Boolean get() = gmail.isGmailInstalled()
 
     val settings: StateFlow<AppSettings> =
         settingsRepository.settings.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())

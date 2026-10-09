@@ -73,44 +73,7 @@ fun ActionItemDialog(
     meetingId: Long,
     onDismiss: () -> Unit,
     onSave: (ActionItem) -> Unit,
-) {
-    var task by rememberSaveable { mutableStateOf(initial?.task.orEmpty()) }
-    var owner by rememberSaveable { mutableStateOf(initial?.owner?.takeIf { it != "TBD" }.orEmpty()) }
-    var due by rememberSaveable { mutableStateOf(initial?.dueDate?.takeIf { it != "TBD" }.orEmpty()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "New action item" else "Edit action item") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = task, onValueChange = { task = it }, label = { Text("Task") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                )
-                OutlinedTextField(
-                    value = owner, onValueChange = { owner = it }, label = { Text("Owner") },
-                    placeholder = { Text("TBD") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                )
-                OutlinedTextField(
-                    value = due, onValueChange = { due = it }, label = { Text("Due date") },
-                    placeholder = { Text("e.g. 15 October 2026 or Friday") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = task.isNotBlank(),
-                onClick = {
-                    val base = initial ?: ActionItem(meetingId = meetingId, task = "")
-                    onSave(base.copy(task = task.trim(), owner = owner.trim().ifBlank { "TBD" }, dueDate = due.trim().ifBlank { "TBD" }))
-                },
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
-}
+) = com.meetnotes.app.ui.components.ActionEditorDialog(initial, meetingId, onDismiss, onSave)
 
 /** Full-screen editor for every section of the minutes (one list item per line). */
 @Composable

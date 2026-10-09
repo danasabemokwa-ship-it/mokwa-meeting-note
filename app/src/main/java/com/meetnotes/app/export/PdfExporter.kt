@@ -101,7 +101,8 @@ class PdfExporter @Inject constructor() {
                         canvas!!.drawLine(box.left + 2f, box.centerY(), box.centerX() - 0.5f, box.bottom - 2f, tickPaint)
                         canvas!!.drawLine(box.centerX() - 0.5f, box.bottom - 2f, box.right - 1f, box.top + 1f, tickPaint)
                     }
-                    draw("Owner: ${block.owner}   ·   Due: ${block.due}", metaPaint, indent = 18f, after = 7f)
+                    val pr = block.priority.takeIf { it.isNotBlank() }?.let { "   ·   Priority: $it" }.orEmpty()
+                    draw("Owner: ${block.owner}   ·   Due: ${block.due}$pr", metaPaint, indent = 18f, after = 7f)
                 }
                 is DocBlock.Small -> draw(block.text, smallPaint, after = 3f)
                 DocBlock.PageBreak -> newPage()

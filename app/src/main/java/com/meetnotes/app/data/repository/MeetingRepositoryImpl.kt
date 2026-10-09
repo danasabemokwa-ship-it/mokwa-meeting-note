@@ -5,6 +5,9 @@ import com.meetnotes.app.data.local.ActionItemEntity
 import com.meetnotes.app.data.local.MeetingDao
 import com.meetnotes.app.data.local.MeetingEntity
 import com.meetnotes.app.domain.model.ActionItem
+import com.meetnotes.app.domain.model.ActionWithMeeting
+import com.meetnotes.app.domain.model.Priority
+import com.meetnotes.app.util.DueDates
 import com.meetnotes.app.domain.model.Meeting
 import com.meetnotes.app.domain.model.MeetingStatus
 import com.meetnotes.app.domain.model.MinutesSummary
@@ -60,6 +63,11 @@ class MeetingRepositoryImpl @Inject constructor(
     override suspend fun updateSummary(id: Long, summary: MinutesSummary, replaceActions: Boolean) {
         meetingDao.setSummary(id, json.encodeToString(summary))
         if (replaceActions) {
+            val meetingDate = meetingDao.get(id)?.createdAt ?: System.currentTimeMillis()
+            // Keep e-mail addresses already typed for the same owner.
+            val knownEmails = actionDao.getForMeeting(id)
+                .filter { it.ownerEmail.isNotBlank() }
+                .associate { it.owner.lowercase() to it.ownerEmail }
             actionDao.replaceForMeeting(
                 id,
                 summary.actionItems.mapIndexed { index, a ->
@@ -70,6 +78,9 @@ class MeetingRepositoryImpl @Inject constructor(
                         dueDate = a.dueDate,
                         done = false,
                         position = index,
+                        priority = Priority.parse(a.priority),
+                        ownerEmail = knownEmails[a.owner.lowercase()].orEmpty(),
+                        dueAt = DueDates.parse(a.dueDate, meetingDate),
                     )
                 },
             )
@@ -101,6 +112,18 @@ class MeetingRepositoryImpl @Inject constructor(
 
     override suspend fun deleteActionItem(id: Long) = actionDao.delete(id)
 
+    override fun observeAllActions(): Flow<List<ActionWithMeeting>> =
+        actionDao.observeAllWithMeeting().map { rows ->
+            rows.map { ActionWithMeeting(it.item.toDomain(), it.meetingTitle, it.meetingDate) }
+        }
+
+    override fun observeOpenActionCount(): Flow<Int> = actionDao.observeOpenCount()
+
+    override suspend fun setActionDone(id: Long, done: Boolean) {
+        val e = actionDao.get(id) ?: return
+        actionDao.upsert(e.copy(done = done, completedAt = if (done) System.currentTimeMillis() else null))
+    }
+
     // ---- mapping ----
 
     private fun MeetingEntity.toDomain() = Meeting(
@@ -118,9 +141,24 @@ class MeetingRepositoryImpl @Inject constructor(
         progress = progress,
     )
 
-    private fun ActionItemEntity.toDomain() =
-        ActionItem(id, meetingId, owner, task, dueDate, done, position)
+    private fun ActionItemEntity.toDomain() = ActionItem(
+        id = id, meetingId = meetingId, owner = owner, task = task, dueDate = dueDate, done = done,
+        position = position, priority = priority, ownerEmail = ownerEmail, dueAt = dueAt, notes = notes,
+        completedAt = completedAt,
+    )
 
-    private fun ActionItem.toEntity() =
-        ActionItemEntity(id, meetingId, owner.ifBlank { "TBD" }, task.trim(), dueDate.ifBlank { "TBD" }, done, position)
+    private fun ActionItem.toEntity() = ActionItemEntity(
+        id = id,
+        meetingId = meetingId,
+        owner = owner.trim().ifBlank { "TBD" },
+        task = task.trim(),
+        dueDate = dueDate.trim().ifBlank { "TBD" },
+        done = done,
+        position = position,
+        priority = priority,
+        ownerEmail = ownerEmail.trim(),
+        dueAt = dueAt ?: DueDates.parse(dueDate),
+        notes = notes.trim(),
+        completedAt = if (done) (completedAt ?: System.currentTimeMillis()) else null,
+    )
 }

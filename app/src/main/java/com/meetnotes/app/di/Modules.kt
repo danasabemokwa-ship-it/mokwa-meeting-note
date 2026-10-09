@@ -6,6 +6,7 @@ import androidx.work.WorkManager
 import com.meetnotes.app.BuildConfig
 import com.meetnotes.app.data.local.ActionItemDao
 import com.meetnotes.app.data.local.AppDatabase
+import com.meetnotes.app.data.local.DocumentDao
 import com.meetnotes.app.data.local.MeetingDao
 import com.meetnotes.app.data.remote.AnthropicApi
 import com.meetnotes.app.data.remote.GeminiApi
@@ -33,10 +34,14 @@ object DataModule {
 
     @Provides @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "meetnotes.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "meetnotes.db")
+            // Version 1 only ever held test builds; later versions must add real Migrations.
+            .fallbackToDestructiveMigrationFrom(1)
+            .build()
 
     @Provides fun provideMeetingDao(db: AppDatabase): MeetingDao = db.meetingDao()
     @Provides fun provideActionItemDao(db: AppDatabase): ActionItemDao = db.actionItemDao()
+    @Provides fun provideDocumentDao(db: AppDatabase): DocumentDao = db.documentDao()
 
     @Provides @Singleton
     fun provideJson(): Json = Json {

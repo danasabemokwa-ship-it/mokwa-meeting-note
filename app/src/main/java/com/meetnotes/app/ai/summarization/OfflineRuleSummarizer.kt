@@ -134,7 +134,12 @@ class OfflineRuleSummarizer @Inject constructor() : Summarizer {
             .trimEnd('.')
             .replaceFirstChar { it.uppercase() }
             .take(220)
-        return SummaryActionItem(owner = owner, task = task, dueDate = due)
+        val priority = when {
+            URGENT.containsMatchIn(text) -> "High"
+            LOW_PRIORITY.containsMatchIn(text) -> "Low"
+            else -> "Medium"
+        }
+        return SummaryActionItem(owner = owner, task = task, dueDate = due, priority = priority)
     }
 
     /**
@@ -281,6 +286,8 @@ class OfflineRuleSummarizer @Inject constructor() : Summarizer {
         private val LEADING_FILLER = Regex("""(?i)^((so|okay|ok|alright|also|and|well|yes|right|um|uh|abeg|oya|ehen|ehn|please|kindly|sir|ma)[,.!]?\s+)+""")
         private val FILLER = Regex("""(?i)^(thank you|thanks|good (morning|afternoon|evening)|hello|hi everyone|yes|okay|understood|you are welcome|god bless|amen|well done|noted)\b""")
         private val ATTENDANCE = Regex("""(?i)\b(are|is) (here|present)\b|\bpresent today\b|\bin attendance\b|\bapologies\b""")
+        private val URGENT = Regex("""(?i)\b(urgent(ly)?|immediately|asap|as soon as possible|critical|top priority|without delay|today|tomorrow|next tomorrow|before close of business|cob)\b""")
+        private val LOW_PRIORITY = Regex("""(?i)\b(when (you|we) (can|have time)|if possible|nice to have|later|no rush|eventually)\b""")
         private val NUMBER = Regex("""\d""")
         private val KEYWORDS = Regex(
             """(?i)\b(report|data|budget|plan|issue|problem|risk|challenge|progress|result|target|coverage|cases|training|delivery|deadline|cost|update|improv\w*|increase\w*|decrease\w*|delay\w*|percent|%)"""

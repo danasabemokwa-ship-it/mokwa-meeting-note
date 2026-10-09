@@ -43,6 +43,9 @@ class SettingsRepository @Inject constructor(
         val OPENAI_MODEL = stringPreferencesKey("openai_model")
         val GEMINI_MODEL = stringPreferencesKey("gemini_model")
         val ANTHROPIC_MODEL = stringPreferencesKey("anthropic_model")
+        val USER_NAME = stringPreferencesKey("user_name")
+        val ORGANISATION = stringPreferencesKey("organisation")
+        val RECIPIENTS = stringPreferencesKey("default_recipients")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data
@@ -71,6 +74,9 @@ class SettingsRepository @Inject constructor(
             openAiModel = p[Keys.OPENAI_MODEL]?.takeIf { it.isNotBlank() } ?: d.openAiModel,
             geminiModel = p[Keys.GEMINI_MODEL]?.takeIf { it.isNotBlank() } ?: d.geminiModel,
             anthropicModel = p[Keys.ANTHROPIC_MODEL]?.takeIf { it.isNotBlank() } ?: d.anthropicModel,
+            userName = p[Keys.USER_NAME] ?: d.userName,
+            organisation = p[Keys.ORGANISATION] ?: d.organisation,
+            defaultRecipients = p[Keys.RECIPIENTS] ?: d.defaultRecipients,
         )
     }
 
@@ -88,6 +94,9 @@ class SettingsRepository @Inject constructor(
         p[Keys.OPENAI_MODEL] = s.openAiModel.trim()
         p[Keys.GEMINI_MODEL] = s.geminiModel.trim()
         p[Keys.ANTHROPIC_MODEL] = s.anthropicModel.trim()
+        p[Keys.USER_NAME] = s.userName.trim()
+        p[Keys.ORGANISATION] = s.organisation.trim()
+        p[Keys.RECIPIENTS] = s.defaultRecipients.trim()
     }
 }
 

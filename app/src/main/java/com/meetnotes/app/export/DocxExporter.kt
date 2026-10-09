@@ -82,8 +82,10 @@ class DocxExporter @Inject constructor() {
 
     private fun actionTable(rows: List<DocBlock.ActionRow>): String {
         // Column widths in twentieths of a point; total ≈ A4 text width (9638).
-        val widths = listOf(560, 4618, 1820, 1540, 1100)
-        val headers = listOf("#", "Task", "Owner", "Due date", "Status")
+        val withPriority = rows.any { it.priority.isNotBlank() }
+        val widths = if (withPriority) listOf(500, 3900, 1700, 1400, 1000, 1138) else listOf(560, 4618, 1820, 1540, 1100)
+        val headers = if (withPriority) listOf("#", "Task", "Owner", "Due date", "Priority", "Status")
+            else listOf("#", "Task", "Owner", "Due date", "Status")
         val sb = StringBuilder()
         sb.append("""<w:tbl><w:tblPr><w:tblStyle w:val="ActionTable"/><w:tblW w:w="5000" w:type="pct"/><w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="0" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr><w:tblGrid>""")
         widths.forEach { sb.append("""<w:gridCol w:w="$it"/>""") }
@@ -101,9 +103,13 @@ class DocxExporter @Inject constructor() {
             sb.append(cell(widths[1], run(r.task, strike = r.done), fill))
             sb.append(cell(widths[2], run(r.owner), fill))
             sb.append(cell(widths[3], run(r.due), fill))
+            if (withPriority) {
+                val pc = when (r.priority.lowercase()) { "high" -> "C62828"; "low" -> "5F6B7A"; else -> "9A6A00" }
+                sb.append(cell(widths[4], run(r.priority, bold = r.priority.equals("high", true), color = pc), fill))
+            }
             sb.append(
                 cell(
-                    widths[4],
+                    widths.last(),
                     run(if (r.done) "☑ " else "☐ ", font = "Segoe UI Symbol") + run(if (r.done) "Done" else "Open", color = if (r.done) accent else null),
                     fill,
                 )

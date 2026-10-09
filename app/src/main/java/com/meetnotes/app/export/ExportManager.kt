@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.CalendarContract
 import androidx.core.content.FileProvider
 import com.meetnotes.app.domain.model.ActionItem
+import com.meetnotes.app.domain.model.DocumentItem
 import com.meetnotes.app.domain.model.Meeting
 import com.meetnotes.app.util.Formatters
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -52,6 +53,41 @@ class ExportManager @Inject constructor(
             ExportedFile(file, format, title, textBody)
         }
 
+    /** Writes a document's key-point brief in [format]. */
+    suspend fun writeDocumentSummary(d: DocumentItem, format: ExportFormat): ExportedFile = withContext(Dispatchers.IO) {
+        val dir = File(context.cacheDir, "exports").apply { mkdirs() }
+        val title = "Brief - ${DocumentFormatter.title(d)}"
+        val file = File(dir, "${Formatters.safeFileName(title)}.${format.extension}")
+        val text: String? = when (format) {
+            ExportFormat.PDF -> { pdf.write(file, DocumentFormatter.blocks(d)); null }
+            ExportFormat.WORD -> { docx.write(file, DocumentFormatter.blocks(d), title); null }
+            ExportFormat.MARKDOWN -> DocumentFormatter.markdown(d).also { file.writeText(it) }
+            ExportFormat.TEXT -> DocumentFormatter.plainText(d).also { file.writeText(it) }
+        }
+        ExportedFile(file, format, title, text)
+    }
+
+    /** Share sheet for a document brief. */
+    suspend fun exportDocument(d: DocumentItem, format: ExportFormat): Intent {
+        val e = writeDocumentSummary(d, format)
+        val mime = if (format == ExportFormat.PDF || format == ExportFormat.WORD) format.mime else "text/plain"
+        return shareFile(e.file, mime, e.title, e.inlineText?.take(60_000))
+    }
+
+    /** Share the original imported file. */
+    fun shareOriginal(file: File, mime: String, title: String): Intent = shareFile(file, mime.ifBlank { "*/*" }, title, null)
+
+    /** Opens the original file in another app (Word, Excel, a PDF viewer). */
+    fun viewIntent(file: File, mime: String): Intent =
+        Intent.createChooser(
+            Intent(Intent.ACTION_VIEW).setDataAndType(uriFor(file), mime.ifBlank { "*/*" })
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+            "Open with",
+        )
+
+    /** content:// URI other apps (Gmail) can read. */
+    fun uriFor(file: File): Uri = FileProvider.getUriForFile(context, authority, file)
+
     /** Writes the minutes file and returns a share-sheet intent for it. */
     suspend fun export(meeting: Meeting, actions: List<ActionItem>, format: ExportFormat, includeTranscript: Boolean): Intent {
         val e = writeFile(meeting, actions, format, includeTranscript)
@@ -89,7 +125,7 @@ class ExportManager @Inject constructor(
         )
 
     private fun shareFile(file: File, mime: String, subject: String, inlineText: String?): Intent {
-        val uri = FileProvider.getUriForFile(context, authority, file)
+        val uri = uriFor(file)
         val send = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)

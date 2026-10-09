@@ -29,7 +29,7 @@ object MinutesPrompts {
           "participants": [string],
           "key_discussion_points": [string],
           "decisions_made": [string],
-          "action_items": [ { "owner": string, "task": string, "due_date": string } ],
+          "action_items": [ { "owner": string, "task": string, "due_date": string, "priority": "High" | "Medium" | "Low" } ],
           "next_steps": [string]
         }
 
@@ -40,7 +40,7 @@ object MinutesPrompts {
         4. participants: people who spoke or were stated to be present. Include the known participants supplied. Use [] if none can be identified. Never list generic labels like "Speaker 1" if a real name is known for that speaker.
         5. key_discussion_points: the main topics, findings and figures discussed, one point per string.
         6. decisions_made: only explicit agreements or decisions. Use [] if there were none.
-        7. action_items: every task, commitment or assignment. "owner" is the responsible person's name, or "TBD" if unclear. "due_date" is the deadline exactly as stated (e.g. "Friday", "15 October 2026"), or "TBD" if none was mentioned. "task" starts with a verb.
+        7. action_items: every task, commitment or assignment. "owner" is the responsible person's name, or "TBD" if unclear. "due_date" is the deadline exactly as stated (e.g. "Friday", "15 October 2026"), or "TBD" if none was mentioned. "task" starts with a verb. "priority" is High when the speakers stressed urgency or a near deadline, Low for nice-to-have items, otherwise Medium.
         8. next_steps: follow-up plans, the next meeting date/agenda, or open questions to resolve. Use [] if none.
         9. If the transcript is not in English (for example Hausa), still write the minutes in clear English, keeping names unchanged.
         10. Tone: ${toneInstruction(tone)}

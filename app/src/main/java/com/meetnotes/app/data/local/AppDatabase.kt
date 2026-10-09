@@ -5,12 +5,13 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [MeetingEntity::class, ActionItemEntity::class],
-    version = 1,
+    entities = [MeetingEntity::class, ActionItemEntity::class, DocumentEntity::class],
+    version = 2,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun meetingDao(): MeetingDao
     abstract fun actionItemDao(): ActionItemDao
+    abstract fun documentDao(): DocumentDao
 }

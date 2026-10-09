@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Gavel
@@ -45,6 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,7 +66,16 @@ import com.meetnotes.app.domain.model.Meeting
 import com.meetnotes.app.domain.model.MeetingStatus
 import com.meetnotes.app.domain.model.SummaryTone
 import com.meetnotes.app.export.ExportFormat
+import com.meetnotes.app.ui.components.ActionCard
+import com.meetnotes.app.ui.components.Avatar
 import com.meetnotes.app.ui.components.BulletList
+import com.meetnotes.app.ui.components.DuePill
+import com.meetnotes.app.ui.components.NumberedList
+import com.meetnotes.app.ui.components.PriorityPill
+import com.meetnotes.app.ui.components.ProgressLine
+import com.meetnotes.app.ui.components.SectionCard
+import com.meetnotes.app.ui.theme.Brand
+import com.meetnotes.app.domain.model.Priority
 import com.meetnotes.app.ui.components.EmptyState
 import com.meetnotes.app.ui.components.SectionTitle
 import com.meetnotes.app.util.Formatters
@@ -73,10 +86,12 @@ import com.meetnotes.app.util.Formatters
 fun SummaryPane(
     meeting: Meeting,
     defaultTone: SummaryTone,
-    actionCount: Int,
+    actions: List<ActionItem>,
     onGenerate: (SummaryTone) -> Unit,
     onEdit: () -> Unit,
     onDownload: (ExportFormat) -> Unit,
+    onEmail: () -> Unit,
+    onOpenActions: () -> Unit,
 ) {
     var tone by rememberSaveable { mutableStateOf(defaultTone) }
     val summary = meeting.summary
@@ -89,77 +104,141 @@ fun SummaryPane(
             title = if (meeting.status == MeetingStatus.SUMMARIZING) "Writing the minutes…" else "No minutes yet",
             message = if (meeting.transcript.isNullOrBlank()) {
                 "Transcribe the recording first, then generate structured minutes with action points."
-            } else "Generate structured minutes: discussion points, decisions, action items and next steps.",
+            } else "Generate structured minutes: discussion points, decisions, action points and next steps.",
         )
         if (canGenerate) ToneAndGenerate(tone, { tone = it }, "Generate minutes") { onGenerate(tone) }
         return
     }
 
-    Column(Modifier.fillMaxWidth()) {
-        Text(summary.title.ifBlank { meeting.title }, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            summary.dateTime.ifBlank { Formatters.dateTime(meeting.createdAt) } + " · " + Formatters.duration(meeting.durationMs),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
-        SectionTitle("Participants", Icons.Default.Groups)
-        if (summary.participants.isEmpty()) {
-            Text("Not detected — tap Edit to add names.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                summary.participants.forEach { AssistChip(onClick = {}, label = { Text(it) }) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Title card
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.padding(16.dp)) {
+                Text("MINUTES OF MEETING", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(summary.title.ifBlank { meeting.title }, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    summary.dateTime.ifBlank { Formatters.dateTime(meeting.createdAt) } + " · " + Formatters.duration(meeting.durationMs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                )
+                if (actions.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    ProgressLine(actions.count { it.done }, actions.size)
+                }
             }
         }
 
-        SectionTitle("Key Discussion Points", Icons.Default.RecordVoiceOver)
-        BulletList(summary.keyPoints)
+        SectionCard("Participants", Icons.Default.Groups, count = summary.participants.size.takeIf { it > 0 }) {
+            if (summary.participants.isEmpty()) {
+                Text("Not detected — tap Edit minutes to add names.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    summary.participants.forEach { name ->
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainer) {
+                            Row(Modifier.padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Avatar(name, 24.dp)
+                                Spacer(Modifier.width(6.dp))
+                                Text(name, style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-        SectionTitle("Decisions Made", Icons.Default.Gavel)
-        BulletList(summary.decisions)
+        SectionCard("Key Discussion Points", Icons.Default.RecordVoiceOver, count = summary.keyPoints.size.takeIf { it > 0 }) {
+            BulletList(summary.keyPoints)
+        }
 
-        SectionTitle("Action Items", Icons.Default.Checklist)
-        Text(
-            if (actionCount == 0) "None recorded." else "$actionCount action item${if (actionCount == 1) "" else "s"} — see the Actions tab to track them.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        SectionCard("Decisions / Resolutions", Icons.Default.Gavel, count = summary.decisions.size.takeIf { it > 0 }) {
+            NumberedList(summary.decisions)
+        }
 
-        SectionTitle("Next Steps / Follow-up", Icons.Default.Flag)
-        BulletList(summary.nextSteps)
+        SectionCard(
+            "Action Points", Icons.Default.Checklist,
+            count = actions.size.takeIf { it > 0 },
+            action = { if (actions.isNotEmpty()) TextButton(onClick = onOpenActions) { Text("Manage") } },
+        ) {
+            if (actions.isEmpty()) {
+                Text("None recorded.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    // Table header
+                    Row(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+                        Text("Task", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        Text("Owner · Due", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    actions.forEachIndexed { i, a ->
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(Modifier.fillMaxWidth().clickable(onClick = onOpenActions).padding(vertical = 10.dp), verticalAlignment = Alignment.Top) {
+                            Text(
+                                "${i + 1}.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.width(24.dp),
+                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    a.task,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textDecoration = if (a.done) TextDecoration.LineThrough else null,
+                                )
+                                Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Avatar(a.owner, 20.dp)
+                                    Text(a.owner, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                    DuePill(a)
+                                    if (a.priority != Priority.MEDIUM) PriorityPill(a.priority)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        SectionCard("Next Steps / Follow-up", Icons.Default.Flag, count = summary.nextSteps.size.takeIf { it > 0 }) {
+            BulletList(summary.nextSteps)
+        }
 
         if (summary.generatedBy.isNotBlank()) {
             Text(
                 "Generated by ${summary.generatedBy}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.padding(top = 16.dp),
             )
         }
 
-        HorizontalDivider(Modifier.padding(vertical = 16.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onDownload(ExportFormat.PDF) }, enabled = !busy) {
+        // Primary actions
+        Button(onClick = onEmail, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Email minutes with Gmail")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onDownload(ExportFormat.PDF) }, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Download PDF")
+                Text("PDF")
             }
-            Button(onClick = { onDownload(ExportFormat.WORD) }, enabled = !busy) {
+            OutlinedButton(onClick = { onDownload(ExportFormat.WORD) }, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Download Word")
+                Text("Word")
             }
-            OutlinedButton(onClick = onEdit, enabled = !busy) {
+            OutlinedButton(onClick = onEdit, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Edit minutes")
+                Text("Edit")
             }
         }
         if (canGenerate) {
-            Spacer(Modifier.padding(top = 12.dp))
-            ToneAndGenerate(tone, { tone = it }, "Regenerate") { onGenerate(tone) }
+            ToneAndGenerate(tone, { tone = it }, "Regenerate minutes") { onGenerate(tone) }
             Text(
-                "Regenerating replaces the minutes and the action-item checklist.",
+                "Regenerating replaces the minutes and the action-point checklist.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -250,67 +329,58 @@ fun ActionsPane(
     onEdit: (ActionItem?) -> Unit,
     onDelete: (ActionItem) -> Unit,
     onCalendar: (ActionItem) -> Unit,
+    onRemind: (ActionItem) -> Unit,
+    onEmailOwners: () -> Unit,
     onCopy: () -> Unit,
     onShare: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val done = actions.count { it.done }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (actions.isEmpty()) "No action items" else "$done of ${actions.size} completed",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f),
-            )
+            Column(Modifier.weight(1f)) {
+                Text(
+                    if (actions.isEmpty()) "No action points" else "$done of ${actions.size} completed",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                val overdue = actions.count { it.isOverdue() }
+                if (overdue > 0) Text("$overdue overdue", style = MaterialTheme.typography.labelMedium, color = Brand.Red)
+            }
             if (actions.isNotEmpty()) {
-                IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, contentDescription = "Copy action items") }
-                IconButton(onClick = onShare) { Icon(Icons.Default.Share, contentDescription = "Share action items") }
+                IconButton(onClick = onCopy) { Icon(Icons.Default.ContentCopy, contentDescription = "Copy action points") }
+                IconButton(onClick = onShare) { Icon(Icons.Default.Share, contentDescription = "Share action points") }
             }
         }
-        Spacer(Modifier.padding(top = 8.dp))
-        actions.forEach { item ->
-            ActionItemRow(item, onToggle, onEdit, onDelete, onCalendar)
-            Spacer(Modifier.padding(top = 8.dp))
+        if (actions.isNotEmpty()) ProgressLine(done, actions.size)
+        // Open items first, then by due date and priority.
+        actions.sortedWith(compareBy<ActionItem>({ it.done }, { it.dueAt ?: Long.MAX_VALUE }, { it.priority.ordinal })).forEach { item ->
+            ActionCard(
+                item = item,
+                onToggle = { onToggle(item) },
+                onClick = { onEdit(item) },
+                onEmail = { onRemind(item) },
+                onCalendar = { onCalendar(item) },
+                onDelete = { onDelete(item) },
+            )
         }
-        OutlinedButton(onClick = { onEdit(null) }, modifier = Modifier.padding(top = 4.dp)) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Add action item")
-        }
-    }
-}
-
-@Composable
-private fun ActionItemRow(
-    item: ActionItem,
-    onToggle: (ActionItem) -> Unit,
-    onEdit: (ActionItem?) -> Unit,
-    onDelete: (ActionItem) -> Unit,
-    onCalendar: (ActionItem) -> Unit,
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = if (item.done) MaterialTheme.colorScheme.surfaceContainer else MaterialTheme.colorScheme.surfaceContainerHigh
-        ),
-        modifier = Modifier.fillMaxWidth().clickable { onEdit(item) },
-    ) {
-        Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = item.done, onCheckedChange = { onToggle(item) })
-            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                Text(
-                    item.task,
-                    style = MaterialTheme.typography.bodyLarge,
-                    textDecoration = if (item.done) TextDecoration.LineThrough else null,
-                    color = if (item.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    "Owner: ${item.owner}  ·  Due: ${item.dueDate}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { onEdit(null) }) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Add")
             }
-            IconButton(onClick = { onCalendar(item) }) { Icon(Icons.Default.Event, contentDescription = "Add to calendar") }
-            IconButton(onClick = { onDelete(item) }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete action item") }
+            if (actions.any { !it.done }) {
+                Button(onClick = onEmailOwners) {
+                    Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Email owners")
+                }
+            }
         }
+        Text(
+            "Tap an action point to set the owner's email, a due date and priority. \"Remind\" opens Gmail with a ready reminder.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

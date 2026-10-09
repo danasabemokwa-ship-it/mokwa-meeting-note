@@ -29,14 +29,26 @@ android {
         applicationId = "com.mokwa.meetingnote"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "2.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
         buildConfigField("String", "OPENAI_API_KEY", localKey("OPENAI_API_KEY"))
         buildConfigField("String", "GEMINI_API_KEY", localKey("GEMINI_API_KEY"))
         buildConfigField("String", "ANTHROPIC_API_KEY", localKey("ANTHROPIC_API_KEY"))
+    }
+
+    // A fixed key, so every new test build installs over the previous one (the build machine would
+    // otherwise sign each build with a different random key). This key is for test builds only;
+    // create a private release key before publishing on the Play Store.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("mokwa-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {
@@ -59,7 +71,7 @@ android {
     }
 
     packaging {
-        resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+        resources { excludes += listOf("/META-INF/{AL2.0,LGPL2.1}", "/META-INF/DEPENDENCIES", "/META-INF/LICENSE*", "/META-INF/NOTICE*") }
     }
 }
 
@@ -109,6 +121,9 @@ dependencies {
 
     // Playback
     implementation("androidx.media3:media3-exoplayer:1.5.1")
+
+    // Reading text from PDF documents (Android port of Apache PDFBox)
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
     // Networking
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
