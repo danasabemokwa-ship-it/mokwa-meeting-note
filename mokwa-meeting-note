@@ -1,0 +1,67 @@
+name: Build Mokwa Meeting Note APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Unpack uploaded project zip
+        run: |
+          ZIP=$(ls *.zip 2>/dev/null | head -1 || true)
+          if [ -n "$ZIP" ]; then
+            unzip -q -o "$ZIP" -d /tmp/unpack
+            SRC=$(dirname "$(find /tmp/unpack -name settings.gradle.kts | head -1)")
+            rm -rf "$SRC/.github"
+            cp -a "$SRC"/. .
+            git rm -q "$ZIP"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "Unpack $ZIP"
+            git push
+          fi
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the APK
+        run: |
+          chmod +x ./gradlew
+          set -o pipefail
+          ./gradlew assembleDebug --no-daemon 2>&1 | tee build.log
+          cp app/build/outputs/apk/debug/app-debug.apk "MokwaMeetingNote-v${{ github.run_number }}.apk"
+
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E "^e: |error:|What went wrong|Could not|Unresolved|> " build.log | head -40 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MokwaMeetingNote-APK
+          path: MokwaMeetingNote-v${{ github.run_number }}.apk
+
+      - name: Publish APK as a Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Mokwa Meeting Note – build ${{ github.run_number }}
+          body: Download the .apk below on your phone, tap it, allow "Install unknown apps" if asked, then Install.
+          files: MokwaMeetingNote-v${{ github.run_number }}.apk
+          make_latest: true
